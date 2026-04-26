@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return true; } // For development, allow unverified email since Google Auth often returns unverified for some domains initially, or we might use standard Google provider. Wait, the instructions mandate `request.auth.token.email_verified == true`. I will use that.
+    function isOwner(userId) { return request.auth.uid == userId; }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'createdAt'])
+        && data.email is string && data.email.size() <= 200
+        && data.createdAt == request.time
+        && (data.get('theme', '') is string && data.get('theme', '').size() <= 50);
+    }
+
+    function isValidUserUpdate(data) {
+      return data.get('theme', '') is string && data.get('theme', '').size() <= 50;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && request.auth.token.email_verified == true && isOwner(userId) && isValidId(userId);
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isOwner(userId) && isValidId(userId)
+                    && isValidUser(incoming());
+      allow update: if isSignedIn() && request.auth.token.email_verified == true && isOwner(userId) && isValidId(userId)
+                    && isValidUserUpdate(incoming())
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['theme']);
+    }
+
+    function isValidSavedVibe(data) {
+      return data.keys().hasAll(['vibeId', 'name', 'userId', 'savedAt'])
+        && data.vibeId is number
+        && data.name is string && data.name.size() <= 100
+        && (data.get('img', '') is string && data.get('img', '').size() <= 1000)
+        && (data.get('desc', '') is string && data.get('desc', '').size() <= 500)
+        && (data.get('lat', 0.0) is number)
+        && (data.get('lng', 0.0) is number)
+        && data.userId == request.auth.uid
+        && data.savedAt == request.time;
+    }
+
+    match /savedVibes/{savedVibeId} {
+      allow get: if isSignedIn() && request.auth.token.email_verified == true && isOwner(resource.data.userId) && isValidId(savedVibeId);
+      allow list: if isSignedIn() && request.auth.token.email_verified == true && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(savedVibeId)
+                    && isValidSavedVibe(incoming());
+      allow delete: if isSignedIn() && request.auth.token.email_verified == true && isOwner(resource.data.userId) && isValidId(savedVibeId);
+    }
+  }
+}

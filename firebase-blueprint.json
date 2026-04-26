@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "theme": { "type": "string" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "SavedVibe": {
+      "title": "SavedVibe",
+      "description": "A vibe saved by a user",
+      "type": "object",
+      "properties": {
+        "vibeId": { "type": "number" },
+        "name": { "type": "string" },
+        "img": { "type": "string" },
+        "desc": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "userId": { "type": "string" },
+        "savedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["vibeId", "name", "userId", "savedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/savedVibes/{savedVibeId}": {
+      "schema": { "$ref": "#/entities/SavedVibe" },
+      "description": "Vibes saved by users globally to allow easier querying if needed, but we can also use subcollection"
+    }
+  }
+}
