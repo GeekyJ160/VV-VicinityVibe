@@ -3,7 +3,6 @@ import { motion, useMotionValue, useTransform, AnimatePresence } from 'motion/re
 import { Compass, Sparkles, Heart, MessageSquare, X, Star, MapPin, Search, Loader2, Share2, User as UserIcon, Settings, LogOut, CheckCircle2 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { GoogleGenAI } from '@google/genai';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, deleteDoc, serverTimestamp, orderBy } from 'firebase/firestore';
@@ -648,24 +647,31 @@ function ChatInterface({ themeName }: { themeName: string }) {
     setIsLoading(true);
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('No API key provided.');
-      }
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const historyText = messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`).join('\n');
-      const prompt = `You are an expert local guide AI for a location called ${themeName}. Keep your answers concise, fun, and use emojis. Here is the conversation history:\n${historyText}\nUser: ${userMessage}\nAssistant:`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          themeName,
+          message: userMessage,
+          history: messages.slice(-12),
+        }),
       });
 
-      setMessages(prev => [...prev, { role: 'model', text: response.text || 'Sorry, I blanked out! Try again.' }]);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || 'AI request failed.');
+      }
+
+      setMessages(prev => [...prev, {
+        role: 'model',
+        text: payload.text || 'Sorry, I blanked out! Try again.',
+      }]);
     } catch (e) {
       console.error(e);
-      setMessages(prev => [...prev, { role: 'model', text: 'Oops! I am having trouble connecting to my brain. Check your API key!' }]);
+      setMessages(prev => [...prev, {
+        role: 'model',
+        text: 'The AI concierge is temporarily unavailable. Please try again in a moment.',
+      }]);
     } finally {
       setIsLoading(false);
     }
